@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="manifest.json">
+    <!-- Cấu hình Full Screen & Safe Area cho iOS/Android -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WealthPRO">
+    <meta name="theme-color" content="#125B29">
+    <link rel="apple-touch-icon" href="icon.png">
+    
+    <title>Quản Lý Tài Chính Cá Nhân PRO - 6 Chiếc Lọ</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #125B29;
+            --secondary-color: #F49C3C;
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+            --danger-color: #dc3545;
+            --success-color: #28a745;
+            --info-color: #17a2b8;
+        }
+        
+        /* FIX: Khóa Zoom, tràn viền chuẩn PWA & Native App */
+        html {
+            background-color: var(--primary-color);
+            height: 100%;
+            overflow: hidden;
+        }
+        * { 
+            box-sizing: border-box; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            touch-action: manipulation; /* Tắt double tap to zoom */
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body { 
+            margin: 0; 
+            padding: 0;
+            /* Thêm khoảng đệm an toàn cho tai thỏ và thanh điều hướng khi xoay ngang */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            display: flex; 
+            height: 100dvh; 
+            width: 100vw;
+            overflow: hidden; 
+            position: fixed; 
+            top: 0;
+            left: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        input, select, textarea, .table-responsive {
+            user-select: auto;
+            -webkit-user-select: auto;
+        }
+        
+        .sidebar { 
+            width: 260px; 
+            background-color: var(--primary-color); 
+            color: white; 
+            display: flex; 
+            flex-direction: column; 
+            overflow-y: auto; 
+            flex-shrink: 0; 
+            z-index: 100;
+        }
+        .sidebar-header { 
+            padding: 25px 20px; 
+            text-align: center; 
+            font-size: 1.4rem; 
+            font-weight: bold; 
+            border-bottom: 1px solid rgba(255,255,255,0.1); 
+            margin-bottom: 10px;
+        }
+        .menu-item { 
+            padding: 12px 20px; 
+            cursor: pointer; 
+            transition: 0.2s; 
+            font-size: 1.05rem; 
+            color: #fff; 
+        }
+        .menu-item:hover { background-color: rgba(255,255,255,0.1); }
+        .menu-item.active { 
+            background-color: var(--secondary-color); 
+            color: #000; 
+            font-weight: bold; 
+            border-radius: 0 25px 25px 0; 
+            margin-right: 15px; 
+        }
+        
+        .main-content { 
+            flex: 1; 
+            padding: 25px 30px; 
+            overflow-y: auto; 
+            height: 100%; 
+            -webkit-overflow-scrolling: touch;
+        }
+        .section { display: none; animation: fadeIn 0.25s ease-in-out; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        
+        h2 { 
+            color: var(--primary-color); 
+            border-bottom: 2px solid var(--secondary-color); 
+            padding-bottom: 10px; 
+            margin-top: 0; 
+            margin-bottom: 20px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 10px;
+        }
+        h3 { color: var(--primary-color); margin-top: 25px; }
+        
+        /* Cards & Tables */
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: white; padding: 18px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); text-align: center; border-left: 5px solid var(--primary-color); }
+        .card h3 { margin: 0 0 8px 0; font-size: 0.95rem; color: #666; }
+        .card .value { font-size: 1.5rem; font-weight: bold; color: var(--primary-color); }
+        .charts-container { display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; }
+        .chart-box { flex: 1; min-width: 280px; background: white; padding: 18px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 25px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        table { width: 100%; border-collapse: collapse; min-width: 700px; font-size: 0.95rem; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; color: var(--primary-color); font-weight: 600; white-space: nowrap; }
+        tr:hover { background-color: #fafafa; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        
+        /* Forms & Buttons */
+        .form-group { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; background: white; padding: 18px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); align-items: flex-end;}
+        .form-control { flex: 1; min-width: 150px; display: flex; flex-direction: column; }
+        .form-control label { font-size: 0.85rem; margin-bottom: 5px; font-weight: bold; color: #555; }
+        .form-control input, .form-control select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; outline: none; }
+        .form-control input:focus, .form-control select:focus { border-color: var(--primary-color); }
+        
+        .btn { padding: 10px 18px; background-color: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: bold; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); }
+        .btn-export { background-color: var(--info-color); }
+        .btn-import { background-color: var(--secondary-color); color: #000; }
+        .btn-action { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; margin: 0 2px;}
+        .btn-edit { background: var(--secondary-color); color: #000; }
+        .btn-delete { background: var(--danger-color); color: white; }
+        
+        .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; color: white; }
+        .bg-success { background: var(--success-color); }
+        .bg-danger { background: var(--danger-color); }
+        .bg-info { background: var(--info-color); }
+        
+        .guide-box { background: white; padding: 18px 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 18px; border-left: 5px solid var(--secondary-color); line-height: 1.6; }
+        .guide-box h4 { margin-top: 0; color: var(--primary-color); font-size: 1.1rem; border-bottom: 1px dashed #eee; padding-bottom: 8px;}
+        .guide-box ul { margin: 8px 0 0 0; padding-left: 20px; }
+        .guide-box li { margin-bottom: 8px; }
+        
+        /* Mobile Layout Optimization */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 5px; border-bottom: 2px solid #0c421b; }
+            .sidebar::-webkit-scrollbar { display: none; }
+            .sidebar-header { display: none; }
+            .menu-item { flex: 0 0 auto; white-space: nowrap; border-radius: 16px; margin: 3px; padding: 8px 14px; font-size: 0.9rem;}
+            .menu-item.active { border-radius: 16px; margin: 3px; }
+            .main-content { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">💎 WEALTH<br>MANAGER PRO</div>
+        <div class="menu-item active" onclick="switchTab('guide', this)">📖 HDSD</div>
+        <div class="menu-item" onclick="switchTab('dashboard', this)">📊 Tổng quan</div>
+        <div class="menu-item" onclick="switchTab('income', this)">📥 Thu nhập</div>
+        <div class="menu-item" onclick="switchTab('expense', this)">📤 Chi tiêu</div>
+        <div class="menu-item" onclick="switchTab('transfer', this)">🔄 Chuyển nội bộ</div>
+        <div class="menu-item" onclick="switchTab('invest', this)">📈 Đầu tư</div>
+        <div class="menu-item" onclick="switchTab('networth', this)">💰 Tài sản ròng</div>
+        <div class="menu-item" onclick="switchTab('settings', this)">⚙️ Cài đặt</div>
+    </div>
+    
+    <div class="main-content">
+        <!-- 0. Guide Section (ĐÃ NÂNG CẤP CHI TIẾT DÀNH CHO NGƯỜI MỚI) -->
+        <div id="guide" class="section active">
+            <h2>📖 Hướng Dẫn Sử Dụng & Vận Hành Hệ Thống WealthPRO</h2>
+            
+            <div class="guide-box" style="border-left-color: var(--primary-color);">
+                <h4>🌟 1. Giới Thiệu & Triết Lý 6 Chiếc Lọ (Jars System)</h4>
+                <p>WealthPRO là ứng dụng quản lý tài chính cá nhân thông minh được thiết kế dựa trên phương pháp **6 Chiếc Lọ (Jars System)** nổi tiếng thế giới. Phương pháp này giúp bạn tự động phân bổ dòng tiền hợp lý, kiểm soát chi tiêu và từng bước đạt được Tự Do Tài Chính.</p>
+                <p>Mặc định, mỗi khi có thu nhập, hệ thống sẽ tự động chia dòng tiền vào 6 quỹ (lọ) theo tỷ lệ vàng:</p>
+                <ul>
+                    <li><b>NEC (Chi tiêu cần thiết - 55%):</b> Đáp ứng các nhu cầu thiết yếu hàng ngày như ăn uống, tiền nhà, điện nước, xăng xe, hóa đơn...</li>
+                    <li><b>LTS (Tiết kiệm dài hạn - 10%):</b> Dành cho các mục tiêu lớn trong tương lai như mua nhà, mua xe, quỹ dự phòng khẩn cấp.</li>
+                    <li><b>EDU (Giáo dục - 10%):</b> Đầu tư phát triển bản thân: mua sách, học khóa học mới, tham gia hội thảo nâng cao kỹ năng.</li>
+                    <li><b>PLAY (Hưởng thụ - 10%):</b> Dành cho giải trí, du lịch, mua sắm đồ yêu thích, ăn uống cùng bạn bè để tái tạo sức lao động.</li>
+                    <li><b>FFA (Tự do tài chính - 10%):</b> Dùng để đầu tư tạo thu nhập thụ động (mua cổ phiếu, CCQ, vàng, bất động sản, kinh doanh...). <i>Lưu ý: Tuyệt đối không rút lọ này để tiêu xài!</i></li>
+                    <li><b>GIVE (Cho đi / Chia sẻ - 5%):</b> Dành cho việc báo hiếu cha mẹ, giúp đỡ người thân, từ thiện, quà cáp, hiếu hỉ.</li>
+                </ul>
+            </div>
+
+            <div class="guide-box" style="border-left-color: var(--info-color);">
+                <h4>⚙️ 2. Cách Ứng Dụng Hoạt Động (Cơ Chế Song Song)</h4>
+                <p>Khác với các ứng dụng ghi chép thông thường, WealthPRO quản lý tài chính theo <b>2 hệ thống song song</b> giúp bạn luôn làm chủ dòng tiền:</p>
+                <ul>
+                    <li><b>1. Ngân Sách 6 Lọ (Mục đích sử dụng):</b> Giúp bạn biết chính xác mình còn bao nhiêu tiền được phép chi cho từng nhu cầu (Ví dụ: Lọ PLAY còn 1.000.000 ₫ khả dụng).</li>
+                    <li><b>2. Tài Khoản / Ví Thực Tế (Nơi giữ tiền):</b> Cho biết dòng tiền thực tế của bạn đang nằm ở ngân hàng hay ví điện tử nào (VD: Techcombank, Tiền mặt, Momo...). Khi thu/chi, số dư thực trên các Ví sẽ tự động tăng/giảm tương ứng.</li>
+                    <li><b>Phân loại "Chi phí" vs "Mua tài sản":</b> Khi ghi chi tiêu, nếu là <i>Chi phí</i> (tiền mất đi vĩnh viễn như ăn uống), tổng tài sản sẽ giảm. Nếu là <i>Mua tài sản</i> (như mua vàng, cổ phiếu, đồ vật giữ giá trị), tiền mặt giảm nhưng tài sản tích lũy sẽ tăng tương ứng.</li>
+                </ul>
+            </div>
+
+            <div class="guide-box" style="border-left-color: var(--secondary-color);">
+                <h4>🚀 3. Hướng Dẫn Các Tính Năng Chi Tiết Cho Người Mới</h4>
+                <ul>
+                    <li><b>🛠️ Bước 1 - Thiết lập ban đầu (Tab Cài đặt):</b> 
+                        <br>Vào tab ⚙️ <b>Cài đặt</b> để khai báo các Ví/Tài khoản ngân hàng bạn đang sở hữu (VD: Techcombank, Tiền mặt, Momo). Bạn cũng có thể tùy chỉnh lại % của 6 Lọ cho phù hợp với hoàn cảnh cá nhân.
+                    </li>
+                    <li><b>📥 Bước 2 - Ghi nhận khi có Thu Nhập (Tab Thu nhập):</b> 
+                        <br>Mỗi khi nhận lương, tiền thưởng hay doanh thu, vào tab 📥 <b>Thu nhập</b>:
+                        <br>- Nhập Ngày, Số tiền và chọn Ví nhận tiền.
+                        <br>- Ở mục <i>Phân bổ vào</i>: Giữ mặc định <b>"Tự động chia 6 Lọ"</b> để ứng dụng tự tính % chia vào các lọ, hoặc chọn nạp thẳng 100% vào 1 lọ cụ thể.
+                    </li>
+                    <li><b>📤 Bước 3 - Ghi nhận khi Chi Tiêu (Tab Chi tiêu):</b> 
+                        <br>Mỗi khi phát sinh chi phí, vào tab 📤 <b>Chi tiêu</b>:
+                        <br>- Chọn Lọ chịu chi phí (VD: Đi chợ chọn NEC, Xem phim chọn PLAY).
+                        <br>- Chọn Ví/Tài khoản thực tế đã dùng để trả tiền.
+                        <br>- Chọn tính chất là <i>Chi phí (Tiêu biến)</i> hoặc <i>Mua tài sản (Lưu giữ giá trị)</i>.
+                    </li>
+                    <li><b>🔄 Bước 4 - Mượn tiền linh hoạt giữa các Lọ (Tab Chuyển nội bộ):</b> 
+                        <br>Nếu một lọ (như NEC) bị hết tiền nhưng bạn bắt buộc phải chi, hãy vào tab 🔄 <b>Chuyển nội bộ</b> để chuyển tạm tiền từ lọ khác (như PLAY hoặc LTS) sang. Tính năng này giúp ngân sách các lọ cân bằng mà không làm xáo trộn tổng tài sản.</li>
+                    <li><b>📈 Bước 5 - Quản lý Đầu tư & Tài sản ròng (Tab Đầu tư & Tài sản ròng):</b> 
+                        <br>- Tab 📈 <b>Đầu tư</b>: Xem biểu đồ chứng khoán/thị trường trực tiếp và ghi nhận nhanh các khoản đầu tư tích lũy rút từ lọ FFA.
+                        <br>- Tab 💰 <b>Tài sản ròng</b>: Theo dõi sự tăng trưởng tổng thể của các quỹ tích lũy dài hạn (LTS, FFA, EDU).
+                    </li>
+                    <li><b>📊 Bước 6 - Đánh giá sức khỏe tài chính (Tab Tổng quan):</b> 
+                        <br>Màn hình 📊 <b>Tổng quan</b> cung cấp các chỉ số tổng thể, biểu đồ phân bổ chi tiêu, bảng kiểm soát hạn mức 6 lọ (Cảnh báo "Vượt hạn mức" màu đỏ nếu chi quá tay) và bảng đối soát chuẩn xác số dư trên từng Ví.
+                    </li>
+                </ul>
+            </div>
+
+            <div class="guide-box" style="border-left-color: var(--success-color);">
+                <h4>💾 4. Quản Lý Dữ Liệu & Mẹo Sử Dụng</h4>
+                <ul>
+                    <li><b>Sao lưu & Bảo mật dữ liệu:</b> Toàn bộ dữ liệu tài chính của bạn được lưu trữ hoàn toàn cục bộ trên thiết bị (Tránh rủi ro lộ thông tin cá nhân). Hãy nhấn nút <b>📥 Xuất Báo Cáo (CSV)</b> định kỳ để sao lưu dữ liệu. Khi đổi máy hoặc cần khôi phục, chỉ cần bấm <b>📤 Nhập Dữ Liệu (CSV)</b>.</li>
+                    <li><b>Mẹo Cài Đặt Dạng App (PWA):</b> Trên điện thoại (iPhone/Android), bấm chọn tính năng <i>"Thêm vào màn hình chính" (Add to Home Screen)</i> trên trình duyệt web. Ứng dụng sẽ biến thành một App riêng biệt trên điện thoại, chạy full màn hình cực kỳ mượt mượt và không cần mở qua trình duyệt!</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- 1. Dashboard Section -->
+        <div id="dashboard" class="section">
+            <h2>
+                Báo Cáo Tổng Quan
+                <div>
+                    <input type="file" id="import-csv" accept=".csv" style="display: none;" onchange="importCSV(event)">
+                    <button class="btn btn-import" onclick="document.getElementById('import-csv').click()">📤 Nhập Dữ Liệu (CSV)</button>
+                    <button class="btn btn-export" onclick="exportCSV()">📥 Xuất Báo Cáo (CSV)</button>
+                </div>
+            </h2>
+            <div class="cards">
+                <div class="card">
+                    <h3>Tổng Thu Nhập</h3>
+                    <div class="value" id="dash-total-income">0 ₫</div>
+                </div>
+                <div class="card">
+                    <h3>Tổng Chi Thực Tế</h3>
+                    <div class="value" id="dash-total-expense" style="color: var(--danger-color)">0 ₫</div>
+                </div>
+                <div class="card">
+                    <h3>Tổng Tài Sản Đầu Tư</h3>
+                    <div class="value" id="dash-total-invest" style="color: var(--secondary-color)">0 ₫</div>
+                </div>
+                <div class="card">
+                    <h3>Thanh Khoản (Số Dư)</h3>
+                    <div class="value" id="dash-balance">0 ₫</div>
+                </div>
+            </div>
+            
+            <div class="charts-container">
+                <div class="chart-box" style="max-width: 400px; margin: 0 auto;">
+                    <h3 style="margin-top:0; text-align:center;">Cơ Cấu Chi Tiêu Theo Lọ</h3>
+                    <div style="position: relative; height: 230px; width: 100%;">
+                        <canvas id="expenseChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <h3 style="margin-top:0; text-align:center;">Dòng Tiền Theo Tài Khoản</h3>
+                    <div style="position: relative; height: 230px; width: 100%;">
+                        <canvas id="walletChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <h3>Kiểm Soát Ngân Sách 6 Chiếc Lọ</h3>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mã Lọ</th>
+                            <th>Tên Quỹ</th>
+                            <th class="text-center">Tỷ Lệ</th>
+                            <th class="text-right">Ngân Sách (₫)</th>
+                            <th class="text-right">Đã Chi/Chuyển (₫)</th>
+                            <th class="text-right">Khả Dụng (₫)</th>
+                            <th class="text-center">Trạng Thái</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jars-table-body"></tbody>
+                </table>
+            </div>
+            
+            <h3>Đối Soát Tài Khoản Ví Thực Tế</h3>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tài Khoản / Nguồn Tiền</th>
+                            <th class="text-right">Tổng Vào (₫)</th>
+                            <th class="text-right">Tổng Ra (₫)</th>
+                            <th class="text-right">Số Dư Thực (₫)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wallets-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 2. Income Section -->
+        <div id="income" class="section">
+            <h2>Nhật Ký Thu Nhập (Tiền Vào)</h2>
+            <div class="form-group">
+                <input type="hidden" id="inc-id">
+                <div class="form-control">
+                    <label>Ngày</label>
+                    <input type="date" id="inc-date" required>
+                </div>
+                <div class="form-control">
+                    <label>Nguồn Thu</label>
+                    <input type="text" id="inc-source" placeholder="VD: Lương tháng...">
+                </div>
+                <div class="form-control">
+                    <label>Số Tiền (VNĐ)</label>
+                    <input type="number" id="inc-amount">
+                </div>
+                <div class="form-control">
+                    <label>Phân Bổ Vào</label>
+                    <select id="inc-allocation">
+                        <option value="AUTO">Tự động chia 6 Lọ</option>
+                        <option value="NEC">Chỉ lọ NEC (Cần thiết)</option>
+                        <option value="LTS">Chỉ lọ LTS (Tiết kiệm dài hạn)</option>
+                        <option value="EDU">Chỉ lọ EDU (Giáo dục)</option>
+                        <option value="PLAY">Chỉ lọ PLAY (Hưởng thụ)</option>
+                        <option value="FFA">Chỉ lọ FFA (Đầu tư / Tự do TC)</option>
+                        <option value="GIVE">Chỉ lọ GIVE (Từ thiện / Chia sẻ)</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label>Tài Khoản Nhận</label>
+                    <select id="inc-wallet" class="wallet-select"></select>
+                </div>
+                <button class="btn" onclick="saveIncome()" id="btn-save-inc">Ghi Nhận Thu</button>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ngày</th>
+                            <th>Nguồn Thu</th>
+                            <th>Phân Bổ</th>
+                            <th>Tài Khoản</th>
+                            <th class="text-right">Số Tiền (₫)</th>
+                            <th class="text-center">Hành Động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="income-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 3. Expense Section -->
+        <div id="expense" class="section">
+            <h2>Nhật Ký Chi Tiêu (Tiền Ra)</h2>
+            <div class="form-group">
+                <input type="hidden" id="exp-id">
+                <div class="form-control">
+                    <label>Ngày</label>
+                    <input type="date" id="exp-date" required>
+                </div>
+                <div class="form-control">
+                    <label>Trừ từ Lọ</label>
+                    <select id="exp-jar">
+                        <option value="NEC">NEC (Cần thiết)</option>
+                        <option value="LTS">LTS (Tiết kiệm)</option>
+                        <option value="EDU">EDU (Giáo dục)</option>
+                        <option value="PLAY">PLAY (Hưởng thụ)</option>
+                        <option value="FFA">FFA (Đầu tư / Tài sản)</option>
+                        <option value="GIVE">GIVE (Từ thiện)</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label>Diễn Giải</label>
+                    <input type="text" id="exp-desc" placeholder="VD: Mua thực phẩm...">
+                </div>
+                <div class="form-control">
+                    <label>Số Tiền (VNĐ)</label>
+                    <input type="number" id="exp-amount">
+                </div>
+                <div class="form-control">
+                    <label>Trừ từ Ví</label>
+                    <select id="exp-wallet" class="wallet-select"></select>
+                </div>
+                <div class="form-control">
+                    <label>Tính Chất</label>
+                    <select id="exp-type">
+                        <option value="Chi phí">Chi phí (Tiêu biến)</option>
+                        <option value="Mua tài sản">Mua tài sản (Lưu giữ giá trị)</option>
+                    </select>
+                </div>
+                <button class="btn" onclick="saveExpense()" id="btn-save-exp">Ghi Chi Tiêu</button>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ngày</th>
+                            <th>Mã Lọ</th>
+                            <th>Diễn Giải</th>
+                            <th>Tài Khoản</th>
+                            <th>Tính Chất</th>
+                            <th class="text-right">Số Tiền (₫)</th>
+                            <th class="text-center">Hành Động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expense-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 4. Transfer Section -->
+        <div id="transfer" class="section">
+            <h2>Luân Chuyển Tiền Giữa Các Lọ (Vay Mượn Nội Bộ)</h2>
+            <div class="form-group">
+                <div class="form-control">
+                    <label>Ngày</label>
+                    <input type="date" id="trans-date" required>
+                </div>
+                <div class="form-control">
+                    <label>Từ Lọ (Bị trừ)</label>
+                    <select id="trans-from">
+                        <option value="NEC">NEC (Cần thiết)</option>
+                        <option value="LTS">LTS (Tiết kiệm)</option>
+                        <option value="EDU">EDU (Giáo dục)</option>
+                        <option value="PLAY">PLAY (Hưởng thụ)</option>
+                        <option value="FFA">FFA (Đầu tư)</option>
+                        <option value="GIVE">GIVE (Từ thiện)</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label>Sang Lọ (Được cộng)</label>
+                    <select id="trans-to">
+                        <option value="NEC">NEC (Cần thiết)</option>
+                        <option value="LTS">LTS (Tiết kiệm)</option>
+                        <option value="EDU">EDU (Giáo dục)</option>
+                        <option value="PLAY">PLAY (Hưởng thụ)</option>
+                        <option value="FFA">FFA (Đầu tư)</option>
+                        <option value="GIVE">GIVE (Từ thiện)</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label>Số Tiền (VNĐ)</label>
+                    <input type="number" id="trans-amount">
+                </div>
+                <button class="btn" onclick="addTransfer()">Chuyển Lọ</button>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ngày</th>
+                            <th>Chuyển Từ</th>
+                            <th>Nhận Tại</th>
+                            <th class="text-right">Số Tiền (₫)</th>
+                            <th class="text-center">Hành Động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transfer-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 5. Đầu Tư FFA Section -->
+        <div id="invest" class="section">
+            <h2>Quản Lý Quỹ Tự Do Tài Chính (FFA)</h2>
+            <p style="color:#555">Sử dụng ngân sách từ lọ FFA để theo dõi các khoản đầu tư sinh lời.</p>
+            
+            <div style="height: 380px; width: 100%; margin-bottom: 20px; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                <script type="text/javascript">
+                new TradingView.widget({
+                  "autosize": true,
+                  "symbol": "NASDAQ:AAPL",
+                  "interval": "D",
+                  "timezone": "Asia/Ho_Chi_Minh",
+                  "theme": "light",
+                  "style": "2",
+                  "locale": "vi_VN",
+                  "enable_publishing": false,
+                  "hide_top_toolbar": false,
+                  "save_image": false,
+                  "container_id": "tradingview_widget"
+                });
+                </script>
+                <div id="tradingview_widget" style="height:100%; width:100%;"></div>
+            </div>
+            
+            <h3>Ghi Nhận Giao Dịch Đầu Tư (Tự động tính là "Mua tài sản")</h3>
+            <div class="form-group">
+                <div class="form-control">
+                    <label>Ngày Đầu Tư</label>
+                    <input type="date" id="inv-date">
+                </div>
+                <div class="form-control">
+                    <label>Hạng Mục / Mã CK</label>
+                    <input type="text" id="inv-desc" placeholder="VD: Mua CCQ VCBFTBF, Cổ phiếu...">
+                </div>
+                <div class="form-control">
+                    <label>Số Tiền Đầu Tư (VNĐ)</label>
+                    <input type="number" id="inv-amount">
+                </div>
+                <div class="form-control">
+                    <label>Trừ từ Ví</label>
+                    <select id="inv-wallet" class="wallet-select"></select>
+                </div>
+                <button class="btn" onclick="addInvestment()">Ghi Nhận Đầu Tư</button>
+            </div>
+        </div>
+        
+        <!-- 6. Tài Sản Ròng -->
+        <div id="networth" class="section">
+            <h2>Tài Sản Ròng & Tích Lũy (Net Worth Tracker)</h2>
+            <p style="color:#555">Được tính bằng: <b>[Ngân sách đã phân bổ]</b> + <b>[Dòng tiền luân chuyển vào]</b> - <b>[Chi phí tiêu biến]</b>.</p>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Quỹ Tích Lũy</th>
+                            <th class="text-right">Ngân Sách Phân Bổ (₫)</th>
+                            <th class="text-right">Giá Trị Đầu Tư / Tài Sản (₫)</th>
+                            <th class="text-right">Đã Tiêu Biến (₫)</th>
+                            <th class="text-right">Thanh Khoản Chờ (₫)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="networth-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 7. Settings -->
+        <div id="settings" class="section">
+            <h2>Cài Đặt Hệ Thống</h2>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <div style="flex: 2; min-width: 280px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <h3>Tỷ Lệ Phân Bổ 6 Lọ (Tổng phải = 100%)</h3>
+                    <div id="jars-settings"></div>
+                    <button class="btn" style="margin-top:15px" onclick="saveJarsConfig()">Lưu Tỷ Lệ</button>
+                    <p id="jar-error" style="color:red; display:none; margin-top:10px;">Tổng tỷ lệ phải đúng bằng 100%!</p>
+                </div>
+                
+                <div style="flex: 1; min-width: 280px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <h3>Quản Lý Tài Khoản / Ví</h3>
+                    <ul id="wallet-list" style="list-style: none; padding: 0; line-height: 2.2;"></ul>
+                    <div style="display:flex; gap:10px; margin-top:15px;">
+                        <input type="text" id="new-wallet" placeholder="Tên ví mới..." style="padding:8px; border:1px solid #ddd; border-radius:4px; flex:1;">
+                        <button class="btn" style="margin-top:0; padding:8px 15px;" onclick="addWallet()">Thêm</button>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top: 30px; text-align:right;">
+                <button class="btn btn-delete" onclick="resetAllData()">⚠️ Xóa Toàn Bộ Dữ Liệu</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ---------------- KHÓA DOUBLE TAP ZOOM TRÊN IOS ----------------
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+        // ---------------- DỮ LIỆU & LOCAL STORAGE ----------------
+        let jarsConfig = JSON.parse(localStorage.getItem('jarsConfig')) || [
+            { id: 'NEC', name: 'Chi tiêu cần thiết', percent: 0.55 },
+            { id: 'LTS', name: 'Tiết kiệm dài hạn', percent: 0.10 },
+            { id: 'EDU', name: 'Quỹ giáo dục', percent: 0.10 },
+            { id: 'PLAY', name: 'Hưởng thụ', percent: 0.10 },
+            { id: 'FFA', name: 'Tự do tài chính', percent: 0.10 },
+            { id: 'GIVE', name: 'Từ thiện / Chia sẻ', percent: 0.05 }
+        ];
+        let incomes = JSON.parse(localStorage.getItem('incomes')) || [];
+        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+        let transfers = JSON.parse(localStorage.getItem('transfers')) || [];
+        let wallets = JSON.parse(localStorage.getItem('wallets')) || ['Techcombank', 'Tiền mặt', 'Momo'];
+        
+        function saveData() {
+            localStorage.setItem('jarsConfig', JSON.stringify(jarsConfig));
+            localStorage.setItem('incomes', JSON.stringify(incomes));
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+            localStorage.setItem('transfers', JSON.stringify(transfers));
+            localStorage.setItem('wallets', JSON.stringify(wallets));
+            updateAllViews();
+        }
+        
+        const formatMoney = (amount) => (amount || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " ₫";
+        const generateId = () => Date.now().toString();
+        
+        // Cập nhật ngày mặc định cho các input date
+        const todayStr = new Date().toISOString().slice(0, 10);
+        document.addEventListener("DOMContentLoaded", () => {
+            ['inc-date', 'exp-date', 'trans-date', 'inv-date'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.value = todayStr;
+            });
+            updateAllViews();
+        });
+        // ---------------- ĐIỀU HƯỚNG TABS ----------------
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+            document.querySelectorAll('.menu-item').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            if(element) element.classList.add('active');
+            if(tabId === 'dashboard') updateCharts();
+        }
+        
+        // ---------------- THU NHẬP (INCOME CRUD) ----------------
+        function saveIncome() {
+            const id = document.getElementById('inc-id').value;
+            const date = document.getElementById('inc-date').value;
+            const source = document.getElementById('inc-source').value || 'Thu nhập';
+            const amount = parseFloat(document.getElementById('inc-amount').value);
+            const allocation = document.getElementById('inc-allocation').value;
+            const wallet = document.getElementById('inc-wallet').value;
+            
+            if(!date || isNaN(amount) || amount <= 0) { alert("Vui lòng nhập Ngày và Số tiền hợp lệ"); return; }
+            const data = { id: id || generateId(), date, source, amount, allocation, wallet };
+            
+            if(id) {
+                const index = incomes.findIndex(i => i.id === id);
+                if(index !== -1) incomes[index] = data;
+                document.getElementById('btn-save-inc').innerText = "Ghi Nhận Thu";
+                document.getElementById('inc-id').value = '';
+            } else {
+                incomes.push(data);
+            }
+            document.getElementById('inc-source').value = '';
+            document.getElementById('inc-amount').value = '';
+            saveData();
+        }
+        
+        function editIncome(id) {
+            const inc = incomes.find(i => i.id === id);
+            if(!inc) return;
+            document.getElementById('inc-id').value = inc.id;
+            document.getElementById('inc-date').value = inc.date;
+            document.getElementById('inc-source').value = inc.source;
+            document.getElementById('inc-amount').value = inc.amount;
+            document.getElementById('inc-allocation').value = inc.allocation;
+            document.getElementById('inc-wallet').value = inc.wallet;
+            document.getElementById('btn-save-inc').innerText = "Cập Nhật";
+            switchTab('income', document.querySelectorAll('.menu-item')[2]);
+        }
+        
+        function deleteIncome(id) {
+            if(confirm("Xóa khoản thu này?")) {
+                incomes = incomes.filter(i => i.id !== id);
+                saveData();
+            }
+        }
+        
+        // ---------------- CHI TIÊU (EXPENSE CRUD) ----------------
+        function saveExpense() {
+            const id = document.getElementById('exp-id').value;
+            const date = document.getElementById('exp-date').value;
+            const jar = document.getElementById('exp-jar').value;
+            const desc = document.getElementById('exp-desc').value || 'Chi tiêu';
+            const amount = parseFloat(document.getElementById('exp-amount').value);
+            const wallet = document.getElementById('exp-wallet').value;
+            const type = document.getElementById('exp-type').value;
+            
+            if(!date || isNaN(amount) || amount <= 0) { alert("Vui lòng nhập Ngày và Số tiền hợp lệ"); return; }
+            const data = { id: id || generateId(), date, jar, desc, amount, wallet, type };
+            
+            if(id) {
+                const index = expenses.findIndex(e => e.id === id);
+                if(index !== -1) expenses[index] = data;
+                document.getElementById('btn-save-exp').innerText = "Ghi Chi Tiêu";
+                document.getElementById('exp-id').value = '';
+            } else {
+                expenses.push(data);
+            }
+            document.getElementById('exp-desc').value = '';
+            document.getElementById('exp-amount').value = '';
+            saveData();
+        }
+        
+        function editExpense(id) {
+            const exp = expenses.find(e => e.id === id);
+            if(!exp) return;
+            document.getElementById('exp-id').value = exp.id;
+            document.getElementById('exp-date').value = exp.date;
+            document.getElementById('exp-jar').value = exp.jar;
+            document.getElementById('exp-desc').value = exp.desc;
+            document.getElementById('exp-amount').value = exp.amount;
+            document.getElementById('exp-wallet').value = exp.wallet;
+            document.getElementById('exp-type').value = exp.type;
+            document.getElementById('btn-save-exp').innerText = "Cập Nhật";
+            switchTab('expense', document.querySelectorAll('.menu-item')[3]);
+        }
+        
+        function deleteExpense(id) {
+            if(confirm("Xóa khoản chi này?")) {
+                expenses = expenses.filter(e => e.id !== id);
+                saveData();
+            }
+        }
+        
+        // ---------------- LUÂN CHUYỂN (TRANSFER) ----------------
+        function addTransfer() {
+            const date = document.getElementById('trans-date').value;
+            const fromJar = document.getElementById('trans-from').value;
+            const toJar = document.getElementById('trans-to').value;
+            const amount = parseFloat(document.getElementById('trans-amount').value);
+            
+            if(!date || isNaN(amount) || amount <= 0) { alert("Nhập số tiền hợp lệ"); return; }
+            if(fromJar === toJar) { alert("Không thể chuyển cùng một lọ"); return;}
+            
+            transfers.push({ id: generateId(), date, fromJar, toJar, amount });
+            document.getElementById('trans-amount').value = '';
+            saveData();
+        }
+        
+        function deleteTransfer(id) {
+            if(confirm("Hủy chuyển lọ?")) {
+                transfers = transfers.filter(t => t.id !== id);
+                saveData();
+            }
+        }
+        
+        // ---------------- ĐẦU TƯ NHANH (FFA) ----------------
+        function addInvestment() {
+            const date = document.getElementById('inv-date').value;
+            const desc = document.getElementById('inv-desc').value || 'Đầu tư tài sản';
+            const amount = parseFloat(document.getElementById('inv-amount').value);
+            const wallet = document.getElementById('inv-wallet').value;
+            
+            if(!date || isNaN(amount) || amount <= 0) { alert("Nhập đủ Ngày và Số tiền hợp lệ"); return; }
+            expenses.push({ id: generateId(), date, jar: 'FFA', desc, amount, wallet, type: 'Mua tài sản' });
+            
+            document.getElementById('inv-desc').value = '';
+            document.getElementById('inv-amount').value = '';
+            saveData();
+            alert("Đã ghi nhận đầu tư thành công vào quỹ FFA!");
+        }
+        
+        // ---------------- RENDER & LOGIC TÍNH TOÁN ----------------
+        let expenseChartInstance = null;
+        let walletChartInstance = null;
+        
+        function updateAllViews() {
+            const walletOptions = wallets.map(w => `<option value="${w}">${w}</option>`).join('');
+            document.querySelectorAll('.wallet-select').forEach(sel => sel.innerHTML = walletOptions);
+            
+            renderIncomeTable();
+            renderExpenseTable();
+            renderTransferTable();
+            
+            let totalGeneralIncome = 0;
+            let specificIncomes = { NEC:0, LTS:0, EDU:0, PLAY:0, FFA:0, GIVE:0 };
+            incomes.forEach(inc => {
+                if(inc.allocation === 'AUTO') totalGeneralIncome += inc.amount;
+                else if(specificIncomes[inc.allocation] !== undefined) specificIncomes[inc.allocation] += inc.amount;
+            });
+            
+            const totalIncome = incomes.reduce((sum, i) => sum + i.amount, 0);
+            const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+            const totalInvest = expenses.filter(e => e.type === 'Mua tài sản').reduce((sum, e) => sum + e.amount, 0);
+            
+            document.getElementById('dash-total-income').innerText = formatMoney(totalIncome);
+            document.getElementById('dash-total-expense').innerText = formatMoney(expenses.filter(e => e.type === 'Chi phí').reduce((sum,e)=>sum+e.amount,0));
+            document.getElementById('dash-total-invest').innerText = formatMoney(totalInvest);
+            document.getElementById('dash-balance').innerText = formatMoney(totalIncome - totalExpense);
+            
+            const jarsHtml = jarsConfig.map(jar => {
+                let jarBudget = (totalGeneralIncome * jar.percent) + specificIncomes[jar.id];
+                const transferIn = transfers.filter(t => t.toJar === jar.id).reduce((sum, t) => sum + t.amount, 0);
+                const transferOut = transfers.filter(t => t.fromJar === jar.id).reduce((sum, t) => sum + t.amount, 0);
+                jarBudget = jarBudget + transferIn - transferOut;
+                
+                const jarExpense = expenses.filter(e => e.jar === jar.id).reduce((sum, e) => sum + e.amount, 0);
+                const jarBalance = jarBudget - jarExpense;
+                
+                let statusHtml = jarBalance >= 0 ? `<span class="badge bg-success">An Toàn</span>` : `<span class="badge bg-danger">Vượt Hạn Mức</span>`;
+                return `
+                    <tr>
+                        <td><b>${jar.id}</b></td>
+                        <td>${jar.name}</td>
+                        <td class="text-center">${Math.round(jar.percent * 100)}%</td>
+                        <td class="text-right">${formatMoney(jarBudget)}</td>
+                        <td class="text-right">${formatMoney(jarExpense)}</td>
+                        <td class="text-right" style="color: ${jarBalance<0?'var(--danger-color)':'var(--primary-color)'}"><b>${formatMoney(jarBalance)}</b></td>
+                        <td class="text-center">${statusHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+            document.getElementById('jars-table-body').innerHTML = jarsHtml;
+            
+            const walletsHtml = wallets.map(wallet => {
+                const wIn = incomes.filter(i => i.wallet === wallet).reduce((sum, i) => sum + i.amount, 0);
+                const wOut = expenses.filter(e => e.wallet === wallet).reduce((sum, e) => sum + e.amount, 0);
+                return `
+                    <tr>
+                        <td><b>${wallet}</b></td>
+                        <td class="text-right" style="color:var(--primary-color)">+${formatMoney(wIn)}</td>
+                        <td class="text-right" style="color:var(--danger-color)">-${formatMoney(wOut)}</td>
+                        <td class="text-right"><b>${formatMoney(wIn - wOut)}</b></td>
+                    </tr>
+                `;
+            }).join('');
+            document.getElementById('wallets-table-body').innerHTML = walletsHtml;
+            
+            const nwJars = ['LTS', 'FFA', 'EDU'];
+            const nwHtml = nwJars.map(jarId => {
+                const config = jarsConfig.find(j => j.id === jarId);
+                let budget = (totalGeneralIncome * config.percent) + specificIncomes[jarId];
+                budget += transfers.filter(t => t.toJar === jarId).reduce((s,t)=>s+t.amount,0) - transfers.filter(t => t.fromJar === jarId).reduce((s,t)=>s+t.amount,0);
+                
+                const consumed = expenses.filter(e => e.jar === jarId && e.type === 'Chi phí').reduce((s,e)=>s+e.amount,0);
+                const invested = expenses.filter(e => e.jar === jarId && e.type === 'Mua tài sản').reduce((s,e)=>s+e.amount,0);
+                const cashReady = budget - consumed - invested;
+                return `
+                    <tr>
+                        <td><b>Quỹ ${jarId}</b> (${config.name})</td>
+                        <td class="text-right">${formatMoney(budget)}</td>
+                        <td class="text-right" style="color:var(--secondary-color)"><b>${formatMoney(invested)}</b></td>
+                        <td class="text-right" style="color:var(--danger-color)">-${formatMoney(consumed)}</td>
+                        <td class="text-right" style="color:var(--primary-color)">${formatMoney(cashReady)}</td>
+                    </tr>
+                `;
+            }).join('');
+            document.getElementById('networth-table-body').innerHTML = nwHtml;
+            
+            document.getElementById('jars-settings').innerHTML = jarsConfig.map((j, i) => `
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+                    <span style="width:200px"><b>${j.id}</b> - ${j.name}</span>
+                    <div>
+                        <input type="number" id="cfg-jar-${i}" value="${Number((j.percent * 100).toFixed(2))}" style="width:70px; padding:6px; text-align:center; border:1px solid #ddd; border-radius:4px;"> %
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('wallet-list').innerHTML = wallets.map((w, i) => `
+                <li style="display:flex; justify-content:space-between; align-items:center;">💳 ${w} <button class="btn-action btn-delete" onclick="deleteWallet(${i})">Xóa</button></li>
+            `).join('');
+            
+            if(document.getElementById('dashboard').classList.contains('active')) {
+                updateCharts();
+            }
+        }
+        
+        function renderIncomeTable() {
+            document.getElementById('income-table-body').innerHTML = incomes.map(inc => `
+                <tr>
+                    <td>${inc.date}</td><td>${inc.source}</td>
+                    <td><span class="badge bg-info">${inc.allocation}</span></td>
+                    <td><span style="background:#e9ecef; padding:2px 6px; border-radius:4px;">${inc.wallet}</span></td>
+                    <td class="text-right" style="color:var(--primary-color); font-weight:bold;">+${formatMoney(inc.amount)}</td>
+                    <td class="text-center">
+                        <button class="btn-action btn-edit" onclick="editIncome('${inc.id}')">✏️</button>
+                        <button class="btn-action btn-delete" onclick="deleteIncome('${inc.id}')">🗑️</button>
+                    </td>
+                </tr>`).join('');
+        }
+        
+        function renderExpenseTable() {
+            document.getElementById('expense-table-body').innerHTML = expenses.map(exp => `
+                <tr>
+                    <td>${exp.date}</td><td><b>${exp.jar}</b></td><td>${exp.desc}</td>
+                    <td><span style="background:#e9ecef; padding:2px 6px; border-radius:4px;">${exp.wallet}</span></td>
+                    <td>${exp.type === 'Mua tài sản' ? '<span style="color:var(--secondary-color); font-weight:bold;">Tài sản</span>' : 'Chi phí'}</td>
+                    <td class="text-right" style="color:var(--danger-color); font-weight:bold;">-${formatMoney(exp.amount)}</td>
+                    <td class="text-center">
+                        <button class="btn-action btn-edit" onclick="editExpense('${exp.id}')">✏️</button>
+                        <button class="btn-action btn-delete" onclick="deleteExpense('${exp.id}')">🗑️</button>
+                    </td>
+                </tr>`).join('');
+        }
+        
+        function renderTransferTable() {
+            document.getElementById('transfer-table-body').innerHTML = transfers.map(t => `
+                <tr>
+                    <td>${t.date}</td><td><b style="color:var(--danger-color)">${t.fromJar}</b></td>
+                    <td><b style="color:var(--primary-color)">${t.toJar}</b></td>
+                    <td class="text-right"><b>${formatMoney(t.amount)}</b></td>
+                    <td class="text-center"><button class="btn-action btn-delete" onclick="deleteTransfer('${t.id}')">Hủy</button></td>
+                </tr>`).join('');
+        }
+        
+        function updateCharts() {
+            const expenseData = jarsConfig.map(jar => expenses.filter(e => e.jar === jar.id).reduce((s, e) => s + e.amount, 0));
+            
+            if (expenseChartInstance) expenseChartInstance.destroy();
+            const ctx1 = document.getElementById('expenseChart');
+            if(ctx1) {
+                expenseChartInstance = new Chart(ctx1.getContext('2d'), {
+                    type: 'doughnut',
+                    data: { labels: jarsConfig.map(j => j.id), datasets: [{ data: expenseData, backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']}] },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+            
+            const wIn = wallets.map(w => incomes.filter(i => i.wallet === w).reduce((s, i) => s + i.amount, 0));
+            const wOut = wallets.map(w => expenses.filter(e => e.wallet === w).reduce((s, e) => s + e.amount, 0));
+            
+            if (walletChartInstance) walletChartInstance.destroy();
+            const ctx2 = document.getElementById('walletChart');
+            if(ctx2) {
+                walletChartInstance = new Chart(ctx2.getContext('2d'), {
+                    type: 'bar',
+                    data: { labels: wallets, datasets: [{ label: 'Thu vào', data: wIn, backgroundColor: '#125B29' }, { label: 'Chi ra', data: wOut, backgroundColor: '#dc3545' }] },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+        }
+        
+        // ---------------- SETTINGS, EXPORT & IMPORT ----------------
+        function saveJarsConfig() {
+            let total = 0;
+            const newConfig = jarsConfig.map((j, i) => {
+                const val = parseFloat(document.getElementById(`cfg-jar-${i}`).value) || 0;
+                total += val;
+                return { ...j, percent: val / 100 };
+            });
+            if(Math.round(total) !== 100) { document.getElementById('jar-error').style.display = 'block'; return; }
+            document.getElementById('jar-error').style.display = 'none';
+            jarsConfig = newConfig;
+            saveData();
+            alert("Đã cập nhật tỷ lệ 6 Lọ!");
+        }
+        
+        function addWallet() {
+            const w = document.getElementById('new-wallet').value.trim();
+            if(w && !wallets.includes(w)) { 
+                wallets.push(w); 
+                saveData(); 
+                document.getElementById('new-wallet').value = ''; 
+            }
+        }
+        
+        function deleteWallet(index) {
+            if(confirm("Xóa ví này? Giao dịch cũ thuộc ví vẫn được giữ nguyên.")) { 
+                wallets.splice(index, 1); 
+                saveData(); 
+            }
+        }
+        
+        function resetAllData() {
+            if(confirm("CẢNH BÁO: Hành động này sẽ xóa vĩnh viễn toàn bộ dữ liệu thu chi. Bạn có chắc không?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+        
+        // FIX: Hàm Xuất File CSV Chuẩn UTF-8 Blob
+        function exportCSV() {
+            let csvContent = "\uFEFFLoại,Ngày,Mã Lọ / Phân Bổ,Diễn Giải / Nguồn,Tính Chất,Tài Khoản,Số Tiền\n";
+            
+            incomes.forEach(i => {
+                csvContent += `THU,${i.date},${i.allocation},"${(i.source||'').replace(/"/g, '""')}",,${i.wallet},${i.amount}\n`;
+            });
+            expenses.forEach(e => {
+                csvContent += `CHI,${e.date},${e.jar},"${(e.desc||'').replace(/"/g, '""')}",${e.type},${e.wallet},${e.amount}\n`;
+            });
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `WealthPRO_Data_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+        // FIX: Hàm Nhập File CSV Hoàn Chỉnh 100%
+        function importCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!confirm("Cảnh báo: Nhập dữ liệu từ CSV sẽ thay thế toàn bộ dữ liệu Thu/Chi hiện tại. Bạn có chắc chắn muốn tiếp tục?")) {
+                document.getElementById('import-csv').value = ''; 
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split(/\r?\n/);
+                let newIncomes = [];
+                let newExpenses = [];
+                
+                for (let i = 1; i < lines.length; i++) {
+                    let line = lines[i].trim();
+                    if (!line) continue;
+                    
+                    let cols = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(',');
+                    cols = cols.map(c => c.replace(/^"|"$/g, '').trim());
+                    
+                    if (cols.length >= 7) {
+                        const type = cols[0];
+                        const date = cols[1];
+                        const jarOrAlloc = cols[2];
+                        const descOrSource = cols[3];
+                        const expType = cols[4];
+                        const wallet = cols[5];
+                        const amount = parseFloat(cols[6]);
+                        if (!isNaN(amount)) {
+                            if (type === 'THU') {
+                                newIncomes.push({
+                                    id: generateId() + Math.random().toString(36).substr(2, 4),
+                                    date: date,
+                                    allocation: jarOrAlloc,
+                                    source: descOrSource,
+                                    wallet: wallet,
+                                    amount: amount
+                                });
+                            } else if (type === 'CHI') {
+                                newExpenses.push({
+                                    id: generateId() + Math.random().toString(36).substr(2, 4),
+                                    date: date,
+                                    jar: jarOrAlloc,
+                                    desc: descOrSource,
+                                    type: expType || 'Chi phí',
+                                    wallet: wallet,
+                                    amount: amount
+                                });
+                            }
+                        }
+                    }
+                }
+                if (newIncomes.length > 0 || newExpenses.length > 0) {
+                    incomes = newIncomes;
+                    expenses = newExpenses;
+                    saveData();
+                    alert("Nhập dữ liệu thành công!");
+                } else {
+                    alert("Không tìm thấy dữ liệu hợp lệ trong file CSV!");
+                }
+                document.getElementById('import-csv').value = '';
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+    </script>
+</body>
+</html>
